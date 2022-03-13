@@ -1,9 +1,9 @@
 <?php
-class User
+class Database
 {
   private $username;
   private $password;
-  private $connection;
+  private $conn;
 
   public function __construct($username, $password)
   {
@@ -11,12 +11,12 @@ class User
     $this->password = $password;
     $dns = "mysql:host=localhost";
 
-    $this->connection = new PDO($dns, $this->username, $this->password, [
+    $this->conn = new PDO($dns, $this->username, $this->password, [
       PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
     ]);
 
-    $this->connection->exec("CREATE DATABASE IF NOT EXISTS user_db; USE user_db");
+    $this->conn->exec("CREATE DATABASE IF NOT EXISTS user_db; USE user_db");
 
     $query = "CREATE TABLE IF NOT EXISTS users ( 
           `id` INT NOT NULL AUTO_INCREMENT ,
@@ -24,72 +24,66 @@ class User
           `is_active` INT DEFAULT 1 ,
           PRIMARY KEY (`id`));
     )";
-    $this->connection->query($query);
+    $this->conn->query($query);
   }
 
-  public function getUsers()
+  public function select(string $table, string $row = '*', string $where = null)
   {
-    $statement = $this->connection->prepare("SELECT * FROM users WHERE is_active=1");
+    if ($where !== null) {
+      $sql = "SELECT $row FROM $table WHERE $where";
+    } else {
+      $sql = "SELECT $row FROM $table";
+    }
+
+    $statement = $this->conn->query($sql);
     $statement->execute();
-    $result = $statement->fetchAll();
-    return $result;
+
+    return $statement->fetchAll();
   }
 
-  public function addUser($name)
+  public function insert(string $table, array $data)
   {
-    $statement = $this->connection->prepare("INSERT INTO `users` (`name`) VALUES (:name)");
-    $statement->bindValue(':name', $name);
-    $result = $statement->execute();
+    $columns = implode(",", array_keys($data));
+    $values  = implode(",", array_values($data));
 
-    return $result ? 'added new user successfully' : 'error :( ';
+    $sql = "INSERT INTO $table ($columns) VALUES ('$values')";
+    $statement = $this->conn->prepare($sql);
+    $statement->execute();
   }
 
-  public function editUser($id, $name)
+  public function update(string $table, int $id, array $data)
   {
-    $statement = $this->connection->prepare("UPDATE `users` SET `name`=:name WHERE `id` = :id");
-    $statement->bindValue(':id', $id);
-    $statement->bindValue(':name', $name);
-    $result = $statement->execute();
+    $params = [];
 
-    return $result ? 'edit user successfully' : 'error :( ';
+    foreach ($data as $key => $value) {
+      array_push($params,  "`$key` = '$value'");
+    }
+
+    $sql  = "UPDATE $table SET " . implode(',', $params) .  " WHERE `id` = $id";
+
+    $statement = $this->conn->prepare($sql);
+    $statement->execute();
   }
 
-  public function deleteUser($id)
+  public function delete($table, $id)
   {
-    $statement = $this->connection->prepare("UPDATE `users` SET `is_active`=0 WHERE `id` = :id");
-    $statement->bindValue(':id', $id);
-    $result = $statement->execute();
+    $sql = "DELETE FROM `$table` WHERE `id` = $id";
 
-    return $result ? 'edit user successfully' : 'error :( ';
+    $statement = $this->conn->prepare($sql);
+    $statement->execute();
   }
 }
 
-$user = new User('root', '');
+$user = new Database('root', '');
 
-/* get users */
-$rows = $user->getUsers();
-echo "
-  <div style='padding: 0.25rem; border: 2px solid gray;'>
-  <h2 style='margin: 0; margin-bottom: 1rem;'>Users list</h2> 
-";
-foreach ($rows as $row) {
-  echo "
-    <div>
-      <b>$row->id :</b>
-      $row->name
-      <hr /> 
-    </div>
-  ";
-}
-echo '</div>';
+/* get */
+// $user->select('users');
 
-/* add user */
-// $user->addUser('Naif');
+/* add */
+// $user->insert('users', ["name" => "naif",]);
 
+/* update */
+// $user->update('users', 2, ["name" => "new 12321"]);
 
-/* edit user */
-// $user->editUser(2, 'new name 2');
-
-
-/* delete user */ 
-// $user->deleteUser(2);
+/* delete */
+// $user->delete('users', 1);
