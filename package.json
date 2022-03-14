@@ -1,0 +1,13 @@
+{
+  "name": "php-session",
+  "version": "1.0.0",
+  "description": "",
+  "main": "",
+  "scripts": {
+    "css": "tailwindcss -i css/input.css -o css/output.css --watch",
+    "php": "php -S localhost:8000"
+  },
+  "keywords": [],
+  "author": "Naif Sameer",
+  "license": "MIT"
+}
