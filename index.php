@@ -1,57 +1,120 @@
 <?php
+$dns = "mysql:host=localhost";
+$username = 'root';
+$password = '';
+
+
+
+
 class Database
 {
-  private $username;
-  private $password;
+
+
   private $conn;
+  private $select_query;
 
-  public function __construct($username, $password)
+  public function __construct($db_name)
   {
-    $this->username = $username;
-    $this->password = $password;
-    $dns = "mysql:host=localhost";
+    global $dns, $username, $password;
 
-    $this->conn = new PDO($dns, $this->username, $this->password, [
+    $this->conn = new PDO($dns, $username, $password, [
       PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
     ]);
 
-    $this->conn->exec("CREATE DATABASE IF NOT EXISTS user_db; USE user_db");
+    $this->conn->exec("CREATE DATABASE IF NOT EXISTS `$db_name`; USE `$db_name`");
+  }
 
-    $query = "CREATE TABLE IF NOT EXISTS users ( 
+  public function setTable(string $table_name, array $data)
+  {
+    $columns = "";
+    foreach ($data as $key => $value) {
+      $columns .= "`$key` $value ,";
+    }
+
+    $query = "CREATE TABLE IF NOT EXISTS `$table_name` ( 
           `id` INT NOT NULL AUTO_INCREMENT ,
-          `name` VARCHAR(255) NOT NULL ,
+          $columns
           `is_active` INT DEFAULT 1 ,
           PRIMARY KEY (`id`));
     )";
-    $this->conn->query($query);
+
+    $statement = $this->conn->prepare($query);
+    $statement->execute();
   }
 
-  public function select(string $table, string $row = '*', string $where = null)
+
+  public function select(
+    string $table_name,
+    array $columns
+  ) {
+    $columns_name = implode(',', $columns);
+    $query = "SELECT $columns_name FROM $table_name ";
+
+
+
+    $statement = $this->conn->prepare($query);
+    $statement->execute();
+
+    $this->select_query = $query;
+
+    return $this;
+  }
+
+  public function where(array $conditions)
   {
-    if ($where !== null) {
-      $sql = "SELECT $row FROM $table WHERE $where";
-    } else {
-      $sql = "SELECT $row FROM $table";
+    $where_condition = "";
+    foreach ($conditions as $item) {
+
+      // don't touch this code :)
+      if (strtoupper($item[1]) === "IN") {
+        $in_query = '';
+        foreach ($item[2] as $i) {
+          $in_query .= " '$i' ,";
+        }
+        $in_query = substr($in_query, 0, -1);
+
+        $where_condition .= "`{$item[0]}` {$item[1]} ($in_query) AND ";
+      } else {
+        $where_condition .= "`{$item[0]}` {$item[1]} '{$item[2]}' AND ";
+      }
     }
 
-    $statement = $this->conn->query($sql);
+    $where_condition = substr($where_condition, 0, -4);
+
+    // print_r($where_condition);
+    // exit;
+
+    $query = $this->select_query .  " WHERE $where_condition ";
+
+
+    $statement = $this->conn->prepare($query);
     $statement->execute();
 
-    return $statement->fetchAll();
+    print_r($statement->fetchAll());
   }
 
-  public function insert(string $table, array $data)
+  public function insert(string $table_name, array $data)
   {
-    $columns = implode(",", array_keys($data));
-    $values  = implode(",", array_values($data));
+    $columns = '';
+    $values = '';
 
-    $sql = "INSERT INTO $table ($columns) VALUES ('$values')";
-    $statement = $this->conn->prepare($sql);
+    foreach ($data as $key => $value) {
+      $columns .= "`$key` ,";
+      $values .= "'$value' ,";
+    }
+
+    $columns = substr($columns, 0, -1);
+    $values = substr($values, 0, -1);
+
+    $query = "INSERT INTO `$table_name` ($columns) VALUES ($values)";
+    echo $query;
+
+    $statement = $this->conn->prepare($query);
     $statement->execute();
   }
 
-  public function update(string $table, int $id, array $data)
+  public function update(string $table_name, int $id, array $data)
   {
     $params = [];
 
@@ -59,31 +122,51 @@ class Database
       array_push($params,  "`$key` = '$value'");
     }
 
-    $sql  = "UPDATE $table SET " . implode(',', $params) .  " WHERE `id` = $id";
+    $sql  = "UPDATE $table_name SET " . implode(',', $params) .  " WHERE `id` = $id";
 
     $statement = $this->conn->prepare($sql);
     $statement->execute();
   }
 
-  public function delete($table, $id)
+  public function delete($table_name, $id)
   {
-    $sql = "DELETE FROM `$table` WHERE `id` = $id";
+    $query = "DELETE FROM `$table_name` WHERE `id` = $id";
 
-    $statement = $this->conn->prepare($sql);
+    $statement = $this->conn->prepare($query);
     $statement->execute();
   }
 }
 
-$user = new Database('root', '');
+$user = new Database('super-man');
 
-/* get */
-// $user->select('users');
+$user
+  ->select('erp2', [
+    "*"
+  ])
+  ->where([
+    ["name", "LIKE", "n%"],
+    ["age", ">", 1],
+    ["major", "IN", ['cs', 'it']]
+  ]);
 
-/* add */
-// $user->insert('users', ["name" => "naif",]);
 
-/* update */
-// $user->update('users', 2, ["name" => "new 12321"]);
 
-/* delete */
-// $user->delete('users', 1);
+// $user->setTable('erp2', [
+//   'name' => 'VARCHAR(255)',
+//   'age' => 'INT(12)',
+//   'major' => 'VARCHAR(12)',
+// ]);
+
+
+// $user->insert('erp2', [
+//   "name" => "new Naif",
+//   "age" => 20,
+//   "major" => "it"
+// ]);
+
+// $user->update('heros', 2, [
+//   "name" => "new Naif",
+//   "age" => 19
+// ]);
+
+// $user->delete('heros', 1);
